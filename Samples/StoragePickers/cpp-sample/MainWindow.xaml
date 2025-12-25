@@ -84,6 +84,11 @@
                                     <TextBox x:Name="FileTypeFilterInput" PlaceholderText="Enter filters separated by comma (e.g., .jpg,.png)" Text='.jpg,.jpeg,.png' />
                                 </StackPanel>
 
+                                <StackPanel Style="{StaticResource TestGroupStyle}">
+                                    <CheckBox x:Name="OpenPickerFileTypeChoicesCheckBox" Content="Set FileTypeChoices"/>
+                                    <TextBox x:Name="OpenPickerFileTypeChoicesInput" PlaceholderText="Enter JSON file type choices" Text=' { "Document": [".txt", ".doc", ".pdf"], "Pictures" : [".png", ".jpg", ".jpeg"] } '/>
+                                </StackPanel>
+
                                 <!-- Basic Picker Tests -->
                                 <StackPanel Style="{StaticResource TestGroupStyle}">
                                     <TextBlock Text="Constructor and Basic Picking" FontWeight="SemiBold"/>
@@ -131,8 +136,8 @@
 
 
                                     <StackPanel Style="{StaticResource TestGroupStyle}">
-                                        <CheckBox x:Name="FileTypeChoicesCheckBox" Content="Set FileTypeChoices"/>
-                                        <TextBox x:Name="FileTypeChoicesInput" PlaceholderText="Enter JSON file type choices" Text=' { "Document": [".txt", ".doc", ".pdf"], "Pictures" : [".png", ".jpg", ".jpeg"] } '/>
+                                        <CheckBox x:Name="SavePickerFileTypeChoicesCheckBox" Content="Set FileTypeChoices"/>
+                                        <TextBox x:Name="SavePickerFileTypeChoicesInput" PlaceholderText="Enter JSON file type choices" Text=' { "Document": [".txt", ".doc", ".pdf"], "Pictures" : [".png", ".jpg", ".jpeg"] } '/>
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal" Spacing="8">

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // To learn more about WinUI, the WinUI project structure,
@@ -79,6 +80,49 @@ namespace FilePickersAppSinglePackaged
                         .ToArray();
         }
 
+        private IEnumerable<KeyValuePair<string, List<string>>> DeserizlizeJsonWithInsertionOrder(string choicesJson)
+        {
+            // This method parses the text input to preserve its insertion order.
+            // When developers coding with FileTypeChoices, the order can be directly reflected from code and this parsing is not required.
+            if (string.IsNullOrWhiteSpace(choicesJson))
+            {
+                yield break;
+            }
+
+            using var document = JsonDocument.Parse(choicesJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new ArgumentException("Expected a JSON object of file type choices.", nameof(choicesJson));
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (property.Value.ValueKind != JsonValueKind.Array)
+                {
+                    throw new ArgumentException($"Value for '{property.Name}' must be an array of strings.", nameof(choicesJson));
+                }
+
+                var extensions = new List<string>();
+                foreach (var item in property.Value.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.String)
+                    {
+                        throw new ArgumentException($"All extensions for '{property.Name}' must be strings.", nameof(choicesJson));
+                    }
+
+                    var extension = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(extension))
+                    {
+                        extensions.Add(extension);
+                    }
+                }
+
+                LogResult($"Deserialized choice: {property.Name} with extensions: {string.Join(", ", extensions)}");
+                yield return new KeyValuePair<string, List<string>>(property.Name, extensions);
+            }
+
+        }
+
         #endregion
 
         #region FileOpenPicker Tests
@@ -107,11 +151,33 @@ namespace FilePickersAppSinglePackaged
                     picker.SuggestedStartLocation = GetSelectedNewLocationId();
                 }
 
+                if (SuggestedStartFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedStartFolder = SuggestedStartFolderInput.Text;
+                }
+
+                if (SuggestedFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedFolder = SuggestedFolderInput.Text;
+                }
+
                 if (FileTypeFilterCheckBox.IsChecked == true)
                 {
                     foreach (var filter in GetFileFilters())
                     {
                         picker.FileTypeFilter.Add(filter);
+                    }
+                }
+
+                if (OpenPickerFileTypeChoicesCheckBox.IsChecked == true)
+                {
+                    var choicesJson = (string)OpenPickerFileTypeChoicesInput.Text;
+                    if (!string.IsNullOrEmpty(choicesJson))
+                    {
+                        foreach(var choice in DeserizlizeJsonWithInsertionOrder(choicesJson))
+                        {
+                            picker.FileTypeChoices.Add(choice.Key, choice.Value);
+                        }
                     }
                 }
 
@@ -155,11 +221,33 @@ namespace FilePickersAppSinglePackaged
                     picker.SuggestedStartLocation = GetSelectedNewLocationId();
                 }
 
+                if (SuggestedStartFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedStartFolder = SuggestedStartFolderInput.Text;
+                }
+
+                if (SuggestedFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedFolder = SuggestedFolderInput.Text;
+                }
+
                 if (FileTypeFilterCheckBox.IsChecked == true)
                 {
                     foreach (var filter in GetFileFilters())
                     {
                         picker.FileTypeFilter.Add(filter);
+                    }
+                }
+
+                if (OpenPickerFileTypeChoicesCheckBox.IsChecked == true)
+                {
+                    var choicesJson = (string)OpenPickerFileTypeChoicesInput.Text;
+                    if (!string.IsNullOrEmpty(choicesJson))
+                    {
+                        foreach(var choice in DeserizlizeJsonWithInsertionOrder(choicesJson))
+                        {
+                            picker.FileTypeChoices.Add(choice.Key, choice.Value);
+                        }
                     }
                 }
 
@@ -212,18 +300,14 @@ namespace FilePickersAppSinglePackaged
                     picker.SuggestedFolder = SuggestedFolderInput.Text;
                 }
 
-                if (FileTypeChoicesCheckBox.IsChecked == true)
+                if (SavePickerFileTypeChoicesCheckBox.IsChecked == true)
                 {
-                    var choicesJson = (string)FileTypeChoicesInput.Text;
+                    var choicesJson = (string)SavePickerFileTypeChoicesInput.Text;
                     if (!string.IsNullOrEmpty(choicesJson))
                     {
-                        var choices = System.Text.Json.JsonSerializer.Deserialize(choicesJson, SourceGenerationContext.Default.DictionaryStringListString);
-                        if (choices != null)
+                        foreach(var choice in DeserizlizeJsonWithInsertionOrder(choicesJson))
                         {
-                            foreach (var choice in choices)
-                            {
-                                picker.FileTypeChoices.Add(choice.Key, choice.Value);
-                            }
+                            picker.FileTypeChoices.Add(choice.Key, choice.Value);
                         }
                     }
                 }
@@ -236,6 +320,16 @@ namespace FilePickersAppSinglePackaged
                 if (SuggestedStartLocationCheckBox.IsChecked == true)
                 {
                     picker.SuggestedStartLocation = GetSelectedNewLocationId();
+                }
+
+                if (SuggestedStartFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedStartFolder = SuggestedStartFolderInput.Text;
+                }
+
+                if (SuggestedFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedFolder = SuggestedFolderInput.Text;
                 }
 
                 var result = await picker.PickSaveFileAsync();
@@ -275,6 +369,16 @@ namespace FilePickersAppSinglePackaged
                 if (SuggestedStartLocationCheckBox.IsChecked == true)
                 {
                     picker.SuggestedStartLocation = GetSelectedNewLocationId();
+                }
+
+                if (SuggestedStartFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedStartFolder = SuggestedStartFolderInput.Text;
+                }
+
+                if (SuggestedFolderCheckBox.IsChecked == true)
+                {
+                    picker.SuggestedFolder = SuggestedFolderInput.Text;
                 }
 
                 var result = await picker.PickSingleFolderAsync();

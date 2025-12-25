@@ -154,6 +154,111 @@ namespace winrt::FilePickersAppSinglePackaged::implementation
         return filters;
     }
 
+    void MainWindow::AppendChoiceFromJsonPair(
+        std::wstring_view pairText,
+        std::vector<std::pair<std::wstring, std::vector<std::wstring>>>& orderedChoices)
+    {
+        size_t colonPos = pairText.find(L':');
+        if (colonPos == std::wstring_view::npos)
+        {
+            return;
+        }
+
+        std::wstring key{ pairText.substr(0, colonPos) };
+        std::wstring valueStr{ pairText.substr(colonPos + 1) };
+
+        key = TrimString(key);
+        if (key.empty())
+        {
+            return;
+        }
+
+        std::vector<std::wstring> values;
+        size_t arrStart = valueStr.find(L'[');
+        size_t arrEnd = valueStr.rfind(L']');
+        if (arrStart != std::wstring::npos && arrEnd != std::wstring::npos && arrStart < arrEnd)
+        {
+            std::wstring arrayContent = valueStr.substr(arrStart + 1, arrEnd - arrStart - 1);
+            std::wstringstream ss(arrayContent);
+            std::wstring item;
+            while (std::getline(ss, item, L','))
+            {
+                auto trimmed = TrimString(item);
+                if (!trimmed.empty())
+                {
+                    values.emplace_back(std::move(trimmed));
+                }
+            }
+        }
+
+        orderedChoices.emplace_back(std::move(key), std::move(values));
+    }
+
+    // This method parses the text input to preserve its insertion order.
+    // When developers coding with FileTypeChoices, the order can be directly reflected from code and this parsing is not required.
+    std::vector<std::pair<winrt::hstring, std::vector<winrt::hstring>>> MainWindow::DeserizeJsonInsertionOrder(std::wstring & jsonStr)
+    {        
+        // Remove outer braces and whitespace
+        size_t start = jsonStr.find(L'{');
+        size_t end = jsonStr.rfind(L'}');
+        if (start == std::wstring::npos || end == std::wstring::npos || start >= end)
+        {
+            LogResult(L"Invalid JSON format");
+            return {};
+        }
+        
+        jsonStr = jsonStr.substr(start + 1, end - start - 1);
+        
+        // Split by comma (handle nested arrays properly)
+        std::vector<std::pair<std::wstring, std::vector<std::wstring>>> orderedChoices;
+        size_t pos = 0;
+        int bracketDepth = 0;
+        size_t lastPos = 0;
+        
+        while (pos < jsonStr.length())
+        {
+            wchar_t ch = jsonStr[pos];
+            if (ch == L'[') bracketDepth++;
+            else if (ch == L']') bracketDepth--;
+            else if (ch == L',' && bracketDepth == 0)
+            {
+                // Found a top-level comma, process this key-value pair
+                std::wstring pair = jsonStr.substr(lastPos, pos - lastPos);
+
+                AppendChoiceFromJsonPair(pair, orderedChoices);
+                
+                lastPos = pos + 1;
+            }
+            pos++;
+        }
+        
+        // Process the last pair
+        if (lastPos < jsonStr.length())
+        {
+            std::wstring pair = jsonStr.substr(lastPos);
+            AppendChoiceFromJsonPair(pair, orderedChoices);
+        }
+
+        std::vector<std::pair<winrt::hstring, std::vector<winrt::hstring>>> results;
+        
+        // Add choices to picker in original order
+        for (const auto& choice : orderedChoices)
+        {
+            std::vector<winrt::hstring> extensions;
+            extensions.reserve(choice.second.size());
+
+            for (const auto& ext : choice.second)
+            {
+                extensions.emplace_back(ext);
+            }
+
+            results.emplace_back(hstring{ choice.first }, std::move(extensions));
+            LogResult(winrt::hstring{ L"Inserting choice: " + choice.first });
+        }
+
+        return results;
+    }
+
     winrt::fire_and_forget MainWindow::NewPickSingleFile_Click(winrt::Windows::Foundation::IInspectable const&, RoutedEventArgs const&)
     {
         auto lifetime = get_strong();
@@ -182,6 +287,27 @@ namespace winrt::FilePickersAppSinglePackaged::implementation
                 for (auto const& filter : GetFileFilters())
                 {
                     picker.FileTypeFilter().Append(filter);
+                }
+            }
+
+            if (IsChecked(OpenPickerFileTypeChoicesCheckBox()))
+            {
+                auto jsonText = TrimString(OpenPickerFileTypeChoicesInput().Text().c_str());
+                if (!jsonText.empty())
+                {
+                    try
+                    {
+                        for (auto& choice : DeserizeJsonInsertionOrder(jsonText))
+                        {
+                            picker.FileTypeChoices().Insert(choice.first, winrt::single_threaded_vector(std::move(choice.second)));
+                        }
+                    }
+                    catch (winrt::hresult_error const& ex)
+                    {
+                        std::wstring message = L"Error in New FileSavePicker: Unable to parse FileTypeChoices JSON - ";
+                        message.append(ex.message().c_str());
+                        LogResult(winrt::hstring{ message });
+                    }
                 }
             }
 
@@ -241,6 +367,27 @@ namespace winrt::FilePickersAppSinglePackaged::implementation
                 }
             }
 
+            if (IsChecked(OpenPickerFileTypeChoicesCheckBox()))
+            {
+                auto jsonText = TrimString(OpenPickerFileTypeChoicesInput().Text().c_str());
+                if (!jsonText.empty())
+                {
+                    try
+                    {
+                        for (auto& choice : DeserizeJsonInsertionOrder(jsonText))
+                        {
+                            picker.FileTypeChoices().Insert(choice.first, winrt::single_threaded_vector(std::move(choice.second)));
+                        }
+                    }
+                    catch (winrt::hresult_error const& ex)
+                    {
+                        std::wstring message = L"Error in New FileSavePicker: Unable to parse FileTypeChoices JSON - ";
+                        message.append(ex.message().c_str());
+                        LogResult(winrt::hstring{ message });
+                    }
+                }
+            }
+
             auto results = co_await picker.PickMultipleFilesAsync();
             if (results && results.Size() > 0)
             {
@@ -297,37 +444,23 @@ namespace winrt::FilePickersAppSinglePackaged::implementation
                 }
             }
 
-            if (IsChecked(FileTypeChoicesCheckBox()))
+            if (IsChecked(SavePickerFileTypeChoicesCheckBox()))
             {
-                auto jsonText = TrimString(FileTypeChoicesInput().Text().c_str());
+                auto jsonText = TrimString(SavePickerFileTypeChoicesInput().Text().c_str());
                 if (!jsonText.empty())
                 {
-                    JsonObject jsonObject;
-                    if (JsonObject::TryParse(jsonText, jsonObject))
+                    try
                     {
-                        for (auto const& kvp : jsonObject)
+                        for (auto& choice : DeserizeJsonInsertionOrder(jsonText))
                         {
-                            std::vector<winrt::hstring> values;
-                            if (kvp.Value().ValueType() == JsonValueType::Array)
-                            {
-                                for (auto const& value : kvp.Value().GetArray())
-                                {
-                                    if (value.ValueType() == JsonValueType::String)
-                                    {
-                                        values.emplace_back(value.GetString());
-                                    }
-                                }
-                            }
-
-                            if (!values.empty())
-                            {
-                                picker.FileTypeChoices().Insert(kvp.Key(), winrt::single_threaded_vector(std::move(values)));
-                            }
+                            picker.FileTypeChoices().Insert(choice.first, winrt::single_threaded_vector(std::move(choice.second)));
                         }
                     }
-                    else
+                    catch (winrt::hresult_error const& ex)
                     {
-                        LogResult(L"Error in New FileSavePicker: Unable to parse FileTypeChoices JSON");
+                        std::wstring message = L"Error in New FileSavePicker: Unable to parse FileTypeChoices JSON - ";
+                        message.append(ex.message().c_str());
+                        LogResult(winrt::hstring{ message });
                     }
                 }
             }

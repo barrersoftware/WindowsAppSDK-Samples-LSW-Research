@@ -1,7 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include "MainWindow.g.h"
 
+#include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 namespace winrt::FilePickersAppSinglePackaged::implementation
@@ -20,6 +23,10 @@ namespace winrt::FilePickersAppSinglePackaged::implementation
         Microsoft::Windows::Storage::Pickers::PickerLocationId GetSelectedNewLocationId();
         Microsoft::Windows::Storage::Pickers::PickerViewMode GetSelectedNewViewMode();
         std::vector<winrt::hstring> GetFileFilters();
+        void AppendChoiceFromJsonPair(
+            std::wstring_view pairText,
+            std::vector<std::pair<std::wstring, std::vector<std::wstring>>>& orderedChoices);
+        std::vector<std::pair<winrt::hstring, std::vector<winrt::hstring>>> DeserizeJsonInsertionOrder(std::wstring & jsonStr);
     };
 }
 
